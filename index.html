@@ -267,18 +267,6 @@
             transition: transform 0.5s ease;
         }
 
-        @media (max-width: 768px) {
-            .project-wrap {
-                width: 90vw;
-                padding: 1.5rem 1rem;
-            }
-            .project-wrap img {
-                aspect-ratio: 3/4;
-                height: 60vh;
-                object-fit: cover;
-            }
-        }
-
         .project-wrap:hover {
             transform: scale(1.05);
         }
@@ -327,13 +315,6 @@
             justify-content: center;
             margin: 4rem 0;
             /* Standard section spacing */
-        }
-
-        @media (max-width: 768px) {
-            .tube-container {
-                height: 40vw;
-                margin: 1rem 0;
-            }
         }
 
         .tube {
@@ -770,10 +751,8 @@
 
                     <p
                         class="text-lg md:text-2xl leading-relaxed tracking-tight text-gray-500 max-w-2xl text-center font-medium">
-                        Welcome to Hype District where style meets attitude. <br class="hidden md:block">
-                        Built for the streets, inspired by culture, and driven by individuality. From fresh fits to
-                        standout accessories, we bring you everything you need to level up your look. This isn’t just
-                        clothing… it’s a lifestyle.
+                        Engineered for the elements. Adapted for the streets of Tbilisi. <br class="hidden md:block">
+                        Explore our curated selection of high-performance technical footwear and GorpCore essentials
                     </p>
                 </div>
 
@@ -1364,7 +1343,6 @@
                 start: "top top",
                 end: () => `+=${pinWrapWidth}`,
                 invalidateOnRefresh: true,
-                anticipatePin: 1,
             },
             x: -horizontalScrollLength,
             ease: "none",
