@@ -16,6 +16,42 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
 
+    <!-- Firebase SDK -->
+    <script type="importmap">
+    {
+      "imports": {
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js"
+      }
+    }
+    </script>
+    <script type="module">
+      import { initializeApp } from "firebase/app";
+      import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, addDoc, getDocs } from "firebase/firestore";
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyCD_yBR3v7ez4sGFQiNCBki-XcQrlZbwrU",
+        authDomain: "clothing-store-gorp.firebaseapp.com",
+        projectId: "clothing-store-gorp",
+        storageBucket: "clothing-store-gorp.firebasestorage.app",
+        messagingSenderId: "945666509762",
+        appId: "1:945666509762:web:6d5fa83dc14262246b645b"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+
+      // Expose helpers globally so non-module scripts can use them
+      window.firebaseDB = db;
+      window.firebaseCollection = collection;
+      window.firebaseDoc = doc;
+      window.firebaseSetDoc = setDoc;
+      window.firebaseDeleteDoc = deleteDoc;
+      window.firebaseOnSnapshot = onSnapshot;
+      window.firebaseAddDoc = addDoc;
+      window.firebaseGetDocs = getDocs;
+    </script>
+
     <script>
         tailwind.config = {
             darkMode: "class",
@@ -879,7 +915,7 @@
                     <i data-lucide="arrow-right" class="w-5 h-5"></i>
                 </button>
             </div>
-            <button class="btn-back text-gray-400 text-xs font-semibold">EXIT PORTAL</button>
+            <button id="btn-admin-exit" class="text-gray-400 hover:text-black text-xs font-semibold uppercase tracking-wider">EXIT PORTAL</button>
         </div>
 
         <div id="step-success" class="step active flex flex-col items-center gap-8 text-center">
@@ -1136,6 +1172,23 @@
     document.getElementById('btn-admin-access').onclick = () => {
         showStep('admin');
     };
+    document.getElementById('btn-admin-exit')?.addEventListener('click', () => {
+        showStep('success');
+    });
+
+    // Load orders from Firebase for admin panel
+    function listenToOrders() {
+        if (!window.firebaseDB) { setTimeout(listenToOrders, 100); return; }
+        const ordersRef = window.firebaseCollection(window.firebaseDB, 'orders');
+        window.firebaseOnSnapshot(ordersRef, (snapshot) => {
+            const orders = [];
+            snapshot.forEach(d => orders.push({ id: d.id, ...d.data() }));
+            orders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            window._cachedOrders = orders;
+            if (document.getElementById('admin-orders-list')) loadAdminOrders();
+        });
+    }
+    listenToOrders();
 
 
     // Fire the celebration confetti immediately on page load
@@ -1214,44 +1267,33 @@
     const adminTabBtns = document.querySelectorAll('.admin-tab-btn');
     const adminTabContents = document.querySelectorAll('.admin-tab-content');
 
-    // Load data from localStorage with safety net
+    // Load data from Firebase with real-time sync
     let dropItems = [];
     let fullCollection = [];
 
-    try {
-        dropItems = JSON.parse(localStorage.getItem('hype_drops')) || [
-            { time: "DROPPING IN 2H", name: "Hype Essential Tee", collection: "Core Series 01", imageSrc: "assets/1.jpg" },
-            { time: "READY TO SHIP", name: "District Oversized Hoodie", collection: "Winter '26", imageSrc: "assets/2.jpg" },
-            { time: "LIMITED EDITION", name: "Batumi Street Joggers", collection: "Region Exclusive", imageSrc: "assets/3.jpg" },
-            { time: "DROPPING TOMORROW", name: "Culture Beanie", collection: "Headwear Pack", imageSrc: "assets/4.jpg" }
-        ];
-    } catch (e) {
-        console.error("Data corruption detected, resetting drops.");
-        dropItems = [
-            { time: "DROPPING IN 2H", name: "Hype Essential Tee", collection: "Core Series 01", imageSrc: "assets/1.jpg" }
-        ];
+    function listenToProducts() {
+        // Wait for Firebase to be ready
+        if (!window.firebaseDB) {
+            setTimeout(listenToProducts, 100);
+            return;
+        }
+        const productsRef = window.firebaseCollection(window.firebaseDB, 'products');
+        window.firebaseOnSnapshot(productsRef, (snapshot) => {
+            dropItems = [];
+            fullCollection = [];
+            snapshot.forEach(docSnap => {
+                const data = { id: docSnap.id, ...docSnap.data() };
+                if (data.type === 'drops') dropItems.push(data);
+                else if (data.type === 'collection') fullCollection.push(data);
+            });
+            dropItems.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            fullCollection.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            if (typeof initDrops === 'function') initDrops();
+            if (typeof initFullCollection === 'function') initFullCollection();
+            if (typeof initAdminPanel === 'function') initAdminPanel();
+        });
     }
-
-    try {
-        fullCollection = JSON.parse(localStorage.getItem('hype_collection')) || [
-            { time: "$85", name: "Classic Logo Tee", collection: "Archive", imageSrc: "assets/7.jpg" },
-            { time: "$120", name: "Street Culture Tote", collection: "Lifestyle", imageSrc: "assets/8.jpg" },
-            { time: "$65", name: "Hype District Cap", collection: "Accessories", imageSrc: "assets/6.jpg" },
-            { time: "$45", name: "Individuality Tank", collection: "Statement Piece", imageSrc: "assets/5.jpg" }
-        ];
-    } catch (e) {
-        console.error("Data corruption detected, resetting collection.");
-        fullCollection = [
-            { time: "$85", name: "Classic Logo Tee", collection: "Archive", imageSrc: "assets/7.jpg" }
-        ];
-    }
-
-    function saveData() {
-        localStorage.setItem('hype_drops', JSON.stringify(dropItems));
-        localStorage.setItem('hype_collection', JSON.stringify(fullCollection));
-        if (typeof initDrops === 'function') initDrops();
-        if (typeof initFullCollection === 'function') initFullCollection();
-    }
+    listenToProducts();
 
     // Tab Switching
     adminTabBtns.forEach(btn => {
@@ -1415,36 +1457,54 @@
         }
     };
 
-    window.addProduct = (type) => {
+    window.addProduct = async (type) => {
         const prefix = type === 'drops' ? 'new-prod' : 'coll-prod';
         const name = document.getElementById(`${prefix}-name`).value;
-        const collection = document.getElementById(`${prefix}-collection`).value;
+        const collectionVal = type === 'drops'
+            ? document.getElementById('new-prod-collection').value
+            : document.getElementById('coll-prod-collection').value;
         const statusOrPrice = document.getElementById(type === 'drops' ? 'new-prod-time' : 'coll-prod-price').value;
         const oldPrice = document.getElementById(type === 'drops' ? 'new-prod-old-price' : 'coll-prod-old-price').value;
         const gallery = editState.pendingGallery.filter(src => src !== null);
 
-        if (name && collection && statusOrPrice && gallery.length > 0) {
+        if (name && collectionVal && statusOrPrice && gallery.length > 0) {
             const itemData = {
+                name,
+                collection: collectionVal,
                 time: statusOrPrice,
                 oldPrice: oldPrice || null,
-                name,
-                collection,
                 imageSrc: gallery[0],
-                gallery: gallery
+                gallery,
+                type,
+                createdAt: Date.now()
             };
 
-            if (editState.type === type && editState.index !== null) {
-                if (type === 'drops') dropItems[editState.index] = itemData;
-                else fullCollection[editState.index] = itemData;
-            } else {
-                if (type === 'drops') dropItems.unshift(itemData);
-                else fullCollection.unshift(itemData);
+            if (type === 'collection') {
+                itemData.category = document.getElementById('new-coll-cat').value;
+                itemData.sizes = document.getElementById('new-coll-sizes').value;
             }
 
-            resetForm(type);
-            saveData();
-            initAdminPanel();
-            confetti({ particleCount: 100, colors: [type === 'drops' ? '#4ade80' : '#a855f7', '#ffffff'] });
+            const productsRef = window.firebaseCollection(window.firebaseDB, 'products');
+
+            try {
+                if (editState.type === type && editState.index !== null) {
+                    const list = type === 'drops' ? dropItems : fullCollection;
+                    const existingId = list[editState.index].id;
+                    itemData.createdAt = list[editState.index].createdAt || Date.now();
+                    const docRef = window.firebaseDoc(window.firebaseDB, 'products', existingId);
+                    await window.firebaseSetDoc(docRef, itemData);
+                } else {
+                    const docRef = window.firebaseDoc(productsRef);
+                    await window.firebaseSetDoc(docRef, itemData);
+                }
+                resetForm(type);
+                confetti({ particleCount: 100, colors: [type === 'drops' ? '#4ade80' : '#a855f7', '#ffffff'] });
+            } catch(e) {
+                console.error('Firebase error:', e);
+                alert('Error saving to database.');
+            }
+        } else {
+            alert('Please fill in all fields and add at least one image.');
         }
     };
 
@@ -1454,12 +1514,19 @@
         renderGalleryUI('collection');
     }, 100);
 
-    window.deleteProduct = (type, idx) => {
-        if (type === 'drops') dropItems.splice(idx, 1);
-        else fullCollection.splice(idx, 1);
-        saveData();
-        initAdminPanel();
+    window.deleteProduct = async (type, idx) => {
+        const list = type === 'drops' ? dropItems : fullCollection;
+        const itemId = list[idx].id;
+        if (!itemId) return;
+        try {
+            const docRef = window.firebaseDoc(window.firebaseDB, 'products', itemId);
+            await window.firebaseDeleteDoc(docRef);
+        } catch(e) {
+            console.error('Firebase delete error:', e);
+            alert('Error deleting from database.');
+        }
     };
+
     // --- Admin Orders Logic ---
     window.loadAdminOrders = (filterText = '') => {
         const ordersList = document.getElementById('admin-orders-list');
@@ -1505,8 +1572,7 @@
 
     // Inspect Order Details
     window.inspectOrder = (orderId) => {
-        const storedOrders = JSON.parse(localStorage.getItem('hype_orders') || '[]');
-        const order = storedOrders.find(o => o.id === orderId);
+        const order = (window._cachedOrders || []).find(o => o.id === orderId);
         if (!order) return;
 
         document.getElementById('modal-order-id').innerText = order.id;
@@ -2124,16 +2190,19 @@
             const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
             const totalAmount = document.getElementById('cart-total').innerText;
 
-            // Save Order to LocalStorage
+            // Save Order to Firebase
             const newOrder = {
                 id: orderId,
                 date: dateStr,
                 total: totalAmount,
-                items: JSON.parse(JSON.stringify(cart)) // Deep copy
+                items: JSON.parse(JSON.stringify(cart)),
+                createdAt: Date.now()
             };
-            const storedOrders = JSON.parse(localStorage.getItem('hype_orders') || '[]');
-            storedOrders.push(newOrder);
-            localStorage.setItem('hype_orders', JSON.stringify(storedOrders));
+            if (window.firebaseDB) {
+                const ordersRef = window.firebaseCollection(window.firebaseDB, 'orders');
+                const orderDocRef = window.firebaseDoc(ordersRef);
+                window.firebaseSetDoc(orderDocRef, newOrder).catch(e => console.error('Order save error:', e));
+            }
 
             document.getElementById('confirm-order-id').innerText = orderId;
             document.getElementById('confirm-date').innerText = dateStr;
